@@ -15,12 +15,14 @@ Shopee Affiliate Content Studio
 import json
 import sqlite3
 import datetime
+import tempfile
 from pathlib import Path
 
 import streamlit as st
 
 APP_TITLE = "Shopee Affiliate Content Studio"
-DB_PATH = Path(__file__).parent / "history.db"
+# เก็บฐานข้อมูลในโฟลเดอร์ที่เขียนได้เสมอ (สำคัญบน Streamlit Cloud ที่โฟลเดอร์โค้ดอ่านอย่างเดียว)
+DB_PATH = Path(tempfile.gettempdir()) / "shopee_history.db"
 
 STYLE_GUIDE = """\
 You write production-ready prompts for Thai e-commerce affiliate content.
@@ -62,41 +64,50 @@ No markdown, no commentary outside the JSON.
 
 # --------------------------- DB ---------------------------
 def init_db():
-    con = sqlite3.connect(DB_PATH)
-    con.execute(
-        """CREATE TABLE IF NOT EXISTS history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT, product_name TEXT, link TEXT,
-            image_prompt TEXT, video_prompt TEXT, facebook_caption TEXT)"""
-    )
-    con.commit()
-    con.close()
+    try:
+        con = sqlite3.connect(DB_PATH)
+        con.execute(
+            """CREATE TABLE IF NOT EXISTS history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT, product_name TEXT, link TEXT,
+                image_prompt TEXT, video_prompt TEXT, facebook_caption TEXT)"""
+        )
+        con.commit()
+        con.close()
+    except Exception:
+        pass  # ฐานข้อมูลไม่พร้อมก็ไม่เป็นไร แอปยังทำงานได้
 
 
 def save_history(product_name, link, result):
-    con = sqlite3.connect(DB_PATH)
-    con.execute(
-        "INSERT INTO history (created_at, product_name, link, image_prompt, video_prompt, facebook_caption) VALUES (?,?,?,?,?,?)",
-        (
-            datetime.datetime.now().isoformat(timespec="seconds"),
-            product_name, link,
-            result.get("image_prompt", ""), result.get("video_prompt", ""),
-            result.get("facebook_caption", ""),
-        ),
-    )
-    con.commit()
-    con.close()
+    try:
+        con = sqlite3.connect(DB_PATH)
+        con.execute(
+            "INSERT INTO history (created_at, product_name, link, image_prompt, video_prompt, facebook_caption) VALUES (?,?,?,?,?,?)",
+            (
+                datetime.datetime.now().isoformat(timespec="seconds"),
+                product_name, link,
+                result.get("image_prompt", ""), result.get("video_prompt", ""),
+                result.get("facebook_caption", ""),
+            ),
+        )
+        con.commit()
+        con.close()
+    except Exception:
+        pass
 
 
 def load_history(limit=30):
-    con = sqlite3.connect(DB_PATH)
-    rows = con.execute(
-        "SELECT created_at, product_name, link, image_prompt, video_prompt, facebook_caption "
-        "FROM history ORDER BY id DESC LIMIT ?",
-        (limit,),
-    ).fetchall()
-    con.close()
-    return rows
+    try:
+        con = sqlite3.connect(DB_PATH)
+        rows = con.execute(
+            "SELECT created_at, product_name, link, image_prompt, video_prompt, facebook_caption "
+            "FROM history ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        con.close()
+        return rows
+    except Exception:
+        return []
 
 
 # --------------------------- Gemini ---------------------------
